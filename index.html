@@ -265,6 +265,12 @@
   }
   .review-item.pollution{ background:#fff3f0; border-left: 5px solid #ff8a65; }
   .review-item.clean{ background:#f0fbee; border-left: 5px solid #5ec46a; }
+  .review .group{
+    margin: 12px 2px 6px;
+    font-size: clamp(14px, 3.8vw, 16.5px);
+    font-weight: 900;
+    color:#c2410c;
+  }
 
   @media (max-width: 520px){
     :root{ --sprite: 88px; }
@@ -335,17 +341,50 @@
   'use strict';
 
   /* ================= 行為資料 ================= */
+  /* 同義只留一張：工廠廢氣→工廠排煙；汽車廢氣→過度開車；焚燒秸稈→露天焚燒；農藥噴霧→噴灑農藥。 */
   var ITEMS = [
-    { e:'🏭', label:'工廠廢氣', type:'pollution',
-      desc:'黑煙裡有很多懸浮粒子，會塞住葉子的氣孔，植物就沒辦法好好行光合作用；二氧化硫還會變成酸雨，灼傷葉片、讓土壤變酸。' },
-    { e:'🚗', label:'汽車廢氣', type:'pollution',
-      desc:'汽機車的廢氣含有懸浮粒子，會堵塞葉片氣孔、影響光合作用；二氧化硫形成的酸雨會灼傷葉片，還會讓土壤酸化。' },
-    { e:'🔥', label:'焚燒垃圾', type:'pollution',
-      desc:'露天燒垃圾會冒出濃濃的有毒煙，傷害動物和我們的呼吸，還會破壞小動物住的地方。' },
-    { e:'🌾', label:'焚燒秸稈', type:'pollution',
-      desc:'燒稻稈和燒垃圾一樣，濃煙裡有毒氣體，會危害動物的呼吸，也把牠們的棲息地燒掉了。' },
-    { e:'🧴', label:'農藥噴霧', type:'pollution',
-      desc:'噴太多農藥會放出 VOCs，曬到太陽就變成臭氧傷害植物；還會毒害蜜蜂等昆蟲和小動物。' },
+    { e:'🏭', label:'工廠排煙', type:'pollution', group:'工業／能源',
+      desc:'工廠煙囪冒出黑煙，裡面有很多灰塵。灰塵會讓人和小動物咳嗽，也會堵住葉子的小孔，植物就難以製造食物。' },
+    { e:'💨', label:'廢氣排放', type:'pollution', group:'工業／能源',
+      desc:'機器排出的廢氣會弄髒空氣。人吸了會不舒服，小鳥和植物也會受到傷害。' },
+    { e:'⚡', label:'火力發電', type:'pollution', group:'工業／能源',
+      desc:'燒煤來發電會冒出很多煙。這些煙讓空氣變髒，也會傷害我們的肺和樹木。' },
+    { e:'🛢️', label:'提煉石油', type:'pollution', group:'工業／能源',
+      desc:'提煉石油時會跑出難聞的氣體。氣體污染空氣，讓附近的人和動物呼吸困難。' },
+    { e:'🔩', label:'金屬冶煉', type:'pollution', group:'工業／能源',
+      desc:'把石頭煉成金屬要燒得很熱，會放出煙塵。煙塵弄髒空氣，也會傷害植物和我們的呼吸。' },
+    { e:'🧪', label:'揮發溶劑', type:'pollution', group:'工業／能源',
+      desc:'油漆和膠水容易變成氣體飄走。人聞多了會頭暈，空氣也變得不乾淨。' },
+    { e:'🚗', label:'過度開車', type:'pollution', group:'交通',
+      desc:'太多汽車一起跑，就會排出很多廢氣。空氣變髒後，人和動物吸了會不舒服。' },
+    { e:'🚦', label:'車輛怠速', type:'pollution', group:'交通',
+      desc:'車子停著還開著引擎，就會一直噴廢氣。廢氣白白弄髒我們呼吸的空氣。' },
+    { e:'🚛', label:'遺撒渣土', type:'pollution', group:'交通',
+      desc:'運泥的車沿路撒下塵土，風一吹就滿天灰塵。灰塵會迷到眼睛，也讓人和動物難以呼吸。' },
+    { e:'🔥', label:'焚燒垃圾', type:'pollution', group:'燃燒／煙霧',
+      desc:'燒垃圾會冒出濃煙和有毒氣體。濃煙傷害人和動物的呼吸，也會熏壞附近的植物。' },
+    { e:'🏕️', label:'露天焚燒', type:'pollution', group:'燃燒／煙霧',
+      desc:'在空地燒稻稈、枯葉或雜物，濃煙會飄很遠。人和小動物會一直咳嗽，植物也被煙熏到。' },
+    { e:'🍖', label:'露天燒烤', type:'pollution', group:'燃燒／煙霧',
+      desc:'在戶外燒烤會冒出油煙和炭煙。煙留在空氣裡，會刺到眼睛和喉嚨。' },
+    { e:'🪨', label:'燃煤取暖', type:'pollution', group:'燃燒／煙霧',
+      desc:'燒煤取暖會放出煤煙。煤煙讓家裡和街上的空氣變差，吸久了會傷害肺部。' },
+    { e:'🎆', label:'燃放煙花', type:'pollution', group:'燃燒／煙霧',
+      desc:'煙花爆炸會產生很多煙和粉末。空氣一下子變得很濁，也會嚇到小鳥。' },
+    { e:'🕯️', label:'焚香燒紙', type:'pollution', group:'燃燒／煙霧',
+      desc:'燒香和燒紙會冒出細煙。煙在不通風的地方積聚，會刺激鼻子和眼睛。' },
+    { e:'🍳', label:'餐飲油煙', type:'pollution', group:'燃燒／煙霧',
+      desc:'炒菜冒出的油煙如果沒有抽走，就會飄到街上。空氣變得油膩，人也容易咳嗽。' },
+    { e:'🏗️', label:'建築揚塵', type:'pollution', group:'建築／農林',
+      desc:'地盤施工會揚起大量灰塵。灰塵飄在空氣中，會進到鼻子裡，也蓋住葉子。' },
+    { e:'🏚️', label:'拆卸建築', type:'pollution', group:'建築／農林',
+      desc:'拆樓時會砸出很多粉塵。粉塵飛起來弄髒空氣，讓附近的人呼吸不順。' },
+    { e:'🧴', label:'噴灑農藥', type:'pollution', group:'建築／農林',
+      desc:'噴農藥時，藥霧會飄到空氣中。藥霧可能毒害蜜蜂和小昆蟲，人和植物沾到也不好。' },
+    { e:'🪓', label:'砍伐樹木', type:'pollution', group:'建築／農林',
+      desc:'樹木能吸走髒空氣、放出新鮮空氣。樹被砍掉後，灰塵更易留在空氣裡，我們就更難呼吸到乾淨空氣。' },
+    { e:'🍂', label:'堆肥發酵', type:'pollution', group:'建築／農林',
+      desc:'垃圾和枯葉堆在一起發酵，會放出難聞的氣體。氣味散到空氣中，讓人和動物都不舒服。' },
     { e:'🌳', label:'種植樹木', type:'clean',
       desc:'樹木會吸收二氧化碳、放出氧氣，還會把空氣中的懸浮粒子黏在葉子上，讓空氣變乾淨。' },
     { e:'🚲', label:'騎單車', type:'clean',
@@ -647,25 +686,40 @@
   }
 
   /* ================= 複習清單 ================= */
+  var GROUP_ORDER = ['工業／能源', '交通', '燃燒／煙霧', '建築／農林'];
+
+  function reviewItem(item, kind){
+    return '<div class="review-item ' + kind + '">' +
+             '<span class="e">' + item.e + '</span>' +
+             '<div><b>' + item.label + '</b>' + item.desc + '</div>' +
+           '</div>';
+  }
+
   function buildReview(){
     var html = '';
 
     html += '<h3>🚨 污染行為 <span>（點它們得 1 分）</span></h3>';
-    for (var i = 0; i < POLLUTION.length; i++){
-      var p = POLLUTION[i];
-      html += '<div class="review-item pollution">' +
-                '<span class="e">' + p.e + '</span>' +
-                '<div><b>' + p.label + '</b>' + p.desc + '</div>' +
-              '</div>';
+    for (var g = 0; g < GROUP_ORDER.length; g++){
+      var name = GROUP_ORDER[g];
+      var shown = false;
+      for (var i = 0; i < POLLUTION.length; i++){
+        if (POLLUTION[i].group !== name) continue;
+        if (!shown){
+          html += '<div class="group">' + name + '</div>';
+          shown = true;
+        }
+        html += reviewItem(POLLUTION[i], 'pollution');
+      }
+    }
+    for (var k = 0; k < POLLUTION.length; k++){
+      if (GROUP_ORDER.indexOf(POLLUTION[k].group) === -1){
+        html += reviewItem(POLLUTION[k], 'pollution');
+      }
     }
 
     html += '<h3>🌿 淨化行為 <span>（會扣 1 分，但對地球很好）</span></h3>';
     for (var j = 0; j < CLEAN.length; j++){
-      var c = CLEAN[j];
-      html += '<div class="review-item clean">' +
-                '<span class="e">' + c.e + '</span>' +
-                '<div><b>' + c.label + '</b>' + c.desc + '</div>' +
-              '</div>';
+      html += reviewItem(CLEAN[j], 'clean');
     }
 
     reviewList.innerHTML = html;

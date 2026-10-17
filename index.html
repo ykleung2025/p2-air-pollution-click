@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#cdeeff">
+<title>空氣污染點擊遊戲｜小二環保小教室</title>
+<style>
+  :root{
+    --sprite: 106px;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body{
+    height:100%; margin:0; overflow:hidden;
+  }
+  body{
+    font-family: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,-apple-system,sans-serif;
+    color:#10394f;
+    background: linear-gradient(180deg,#cdeeff 0%, #eaf8ff 55%, #ddf5da 100%);
+    user-select:none; -webkit-user-select:none;
+    touch-action: manipulation;
+  }
+  #game{ position:fixed; inset:0; overflow:hidden; }
+
+  /* ===== 背景雲朵 ===== */
+  .sky{ position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  .cloud{ position:absolute; will-change: transform; }
+  .c1{ top:9%;  left:-18%; font-size:62px; opacity:.55; animation: drift 48s linear infinite; }
+  .c2{ top:27%; left:-28%; font-size:46px; opacity:.45; animation: drift 68s linear infinite; animation-delay:-22s; }
+  .c3{ top:56%; left:-24%; font-size:82px; opacity:.32; animation: drift 88s linear infinite; animation-delay:-52s; }
+  @keyframes drift{ from{ transform: translateX(0); } to{ transform: translateX(160vw); } }
+
+  /* ===== 上方資訊列 ===== */
+  #hud{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+    z-index:20; pointer-events:none;
+  }
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    background: rgba(255,255,255,.9);
+    border-radius: 999px;
+    padding: 8px 18px;
+    box-shadow: 0 6px 18px rgba(0,80,120,.16);
+    font-weight: 900;
+    font-size: clamp(17px, 4.5vw, 23px);
+    letter-spacing: .5px;
+    color:#0d3b52;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  .pill .ico{ font-size: 1em; line-height:1; }
+  .pill .unit{ font-size:.7em; opacity:.65; font-weight:700; }
+  #timerPill.urgent{ color:#e53935; animation: pulse .7s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.09); } }
+  #scorePill.bump{ animation: bump .26s ease; }
+  @keyframes bump{ 0%{ transform: scale(1); } 50%{ transform: scale(1.2); } 100%{ transform: scale(1); } }
+
+  /* ===== 飄動的行為圖示 ===== */
+  .sprite{
+    position:absolute; top:0; left:0;
+    width: var(--sprite);
+    will-change: transform;
+    z-index: 10;
+    cursor: pointer;
+  }
+  .sprite .inner{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: 8px 4px 7px;
+    border-radius: 26px;
+    background: rgba(255,255,255,.96);
+    border: 3px solid #bfe4ff;
+    box-shadow: 0 8px 20px rgba(10,70,110,.18), inset 0 -3px 0 rgba(180,220,255,.55);
+    transition: transform .09s ease;
+  }
+  .sprite:active .inner{ transform: scale(.93); }
+  .sprite .emo{
+    font-size: calc(var(--sprite) * .46);
+    line-height: 1;
+    display:block;
+  }
+  .sprite .lbl{
+    margin-top: 3px;
+    font-size: calc(var(--sprite) * .152);
+    font-weight: 900;
+    line-height: 1.15;
+    text-align:center;
+    color:#0d3b52;
+    white-space: nowrap;
+  }
+  .sprite.pop .inner{ animation: pop .32s cubic-bezier(.4,0,.7,1) forwards; }
+  @keyframes pop{
+    0%{ transform: scale(1); opacity:1; }
+    45%{ transform: scale(1.3); opacity:1; }
+    100%{ transform: scale(0); opacity:0; }
+  }
+
+  /* ===== 提示卡 ===== */
+  .tip{
+    position:absolute;
+    left:50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 26px) scale(.96);
+    width: min(92vw, 620px);
+    background: rgba(255,255,255,.97);
+    border-radius: 24px;
+    padding: 13px 18px 14px;
+    box-shadow: 0 14px 34px rgba(0,60,100,.24);
+    border-left: 9px solid #ff7a59;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 30;
+  }
+  .tip.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
+  .tip.clean{ border-left-color:#3cb44b; }
+  .tip .tt{
+    font-weight: 900;
+    font-size: clamp(17px, 4.6vw, 21px);
+    margin-bottom: 3px;
+    color:#0d3b52;
+  }
+  .tip .tx{
+    font-size: clamp(13.5px, 3.7vw, 16px);
+    line-height: 1.55;
+    color:#25566e;
+  }
+
+  /* ===== 加分／扣分飄字 ===== */
+  .float{
+    position:absolute; z-index:40; pointer-events:none;
+    font-weight: 900;
+    font-size: clamp(24px, 6vw, 34px);
+    transform: translate(-50%,-50%);
+    animation: floatUp .9s ease-out forwards;
+    text-shadow: 0 2px 0 #fff, 0 0 12px rgba(255,255,255,.9);
+  }
+  @keyframes floatUp{
+    0%{ transform: translate(-50%,-50%) scale(.5); opacity:0; }
+    30%{ transform: translate(-50%,-90%) scale(1.18); opacity:1; }
+    100%{ transform: translate(-50%,-190%) scale(1); opacity:0; }
+  }
+
+  /* ===== 全螢幕面板 ===== */
+  .overlay{
+    position: fixed; inset:0; z-index:100;
+    display:flex; align-items:center; justify-content:center;
+    padding: 16px;
+    background: rgba(6,40,60,.42);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .overlay.hidden{ display:none; }
+
+  .card{
+    width: min(94vw, 660px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background:#fff;
+    border-radius: 30px;
+    padding: 22px 20px 26px;
+    box-shadow: 0 26px 70px rgba(0,40,70,.4);
+    text-align:center;
+    animation: cardIn .32s cubic-bezier(.2,1.2,.4,1);
+  }
+  @keyframes cardIn{
+    from{ transform: scale(.9) translateY(18px); opacity:0; }
+    to{ transform: scale(1) translateY(0); opacity:1; }
+  }
+  .card h1{
+    font-size: clamp(21px, 5.6vw, 28px);
+    margin: 6px 0 10px;
+    color:#0d3b52;
+    letter-spacing: 1px;
+  }
+  .big-emo{ font-size: clamp(44px, 12vw, 62px); line-height:1; margin-bottom:2px; }
+  .lead{
+    font-size: clamp(15px, 4vw, 18px);
+    color:#2b6c8a;
+    margin: 0 0 14px;
+    font-weight: 700;
+    line-height:1.5;
+  }
+
+  .rules{ display:flex; flex-direction:column; gap:10px; text-align:left; }
+  .rule{
+    display:flex; gap:10px; align-items:center;
+    border-radius: 18px;
+    padding: 11px 13px;
+    font-size: clamp(13.5px, 3.6vw, 15.5px);
+    line-height: 1.5;
+    color:#1e4a60;
+  }
+  .rule .e{ font-size: 26px; flex:0 0 auto; line-height:1; }
+  .rule.bad{ background:#fff2ef; }
+  .rule.good{ background:#f0fbee; }
+  .rule b{ display:block; font-size: clamp(15px, 3.9vw, 17px); color:#0d3b52; margin-bottom:2px; }
+
+  button{
+    font-family: inherit;
+    font-size: clamp(18px, 4.8vw, 22px);
+    font-weight: 900;
+    color:#fff;
+    background: linear-gradient(180deg,#4ec7ff,#179ee0);
+    border: none;
+    border-radius: 999px;
+    padding: 14px 46px;
+    margin-top: 18px;
+    box-shadow: 0 7px 0 #137fb5, 0 12px 24px rgba(0,90,140,.28);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform .09s, box-shadow .09s;
+  }
+  button:active{
+    transform: translateY(5px);
+    box-shadow: 0 2px 0 #137fb5, 0 6px 14px rgba(0,90,140,.28);
+  }
+
+  .final{
+    font-size: clamp(19px, 5vw, 24px);
+    font-weight: 900;
+    color:#0d3b52;
+    margin: 4px 0 2px;
+  }
+  .final span{ color:#ff6b35; font-size: 1.35em; }
+  .comment{
+    font-size: clamp(14px, 3.8vw, 16.5px);
+    color:#2b6c8a;
+    font-weight: 700;
+    margin: 6px 0 4px;
+    line-height:1.5;
+  }
+
+  .review{ text-align:left; margin-top: 8px; }
+  .review h3{
+    font-size: clamp(15.5px, 4.2vw, 18px);
+    margin: 16px 0 8px;
+    color:#0d3b52;
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  }
+  .review h3 span{
+    font-weight: 600;
+    font-size: .78em;
+    color:#2b6c8a;
+  }
+  .review-item{
+    display:flex; gap:10px; align-items:flex-start;
+    border-radius: 16px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: clamp(13px, 3.5vw, 14.8px);
+    line-height: 1.55;
+    color:#1e4a60;
+  }
+  .review-item .e{ font-size: 24px; line-height:1.1; flex:0 0 auto; }
+  .review-item b{
+    display:block;
+    font-size: clamp(14px, 3.7vw, 16px);
+    color:#0d3b52;
+    margin-bottom: 2px;
+  }
+  .review-item.pollution{ background:#fff3f0; border-left: 5px solid #ff8a65; }
+  .review-item.clean{ background:#f0fbee; border-left: 5px solid #5ec46a; }
+
+  @media (max-width: 520px){
+    :root{ --sprite: 88px; }
+  }
+  @media (max-width: 380px){
+    :root{ --sprite: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div class="sky">
+    <span class="cloud c1">☁️</span>
+    <span class="cloud c2">☁️</span>
+    <span class="cloud c3">☁️</span>
+  </div>
+
+  <div id="hud">
+    <div class="pill" id="timerPill">
+      <span class="ico">⏱️</span><span id="timer">60</span><span class="unit">秒</span>
+    </div>
+    <div class="pill" id="scorePill">
+      <span class="ico">⭐</span><span id="score">0</span><span class="unit">分</span>
+    </div>
+  </div>
+
+  <div id="tipCard" class="tip">
+    <div class="tt"></div>
+    <div class="tx"></div>
+  </div>
+</div>
+
+<!-- 開始畫面 -->
+<div id="startScreen" class="overlay">
+  <div class="card">
+    <div class="big-emo">🌏</div>
+    <h1>空氣污染點擊遊戲</h1>
+    <p class="lead">60 秒內，把「污染行為」找出來點下去！</p>
+    <div class="rules">
+      <div class="rule bad">
+        <span class="e">🏭</span>
+        <div><b>點到污染行為</b>得 1 分，還會告訴你它對動物和植物的危害。</div>
+      </div>
+      <div class="rule good">
+        <span class="e">🌳</span>
+        <div><b>點到淨化行為</b>扣 1 分，因為它不是污染兇手，但它對地球很好喔！</div>
+      </div>
+    </div>
+    <button id="startBtn">開始遊戲</button>
+  </div>
+</div>
+
+<!-- 結算畫面 -->
+<div id="endScreen" class="overlay hidden">
+  <div class="card">
+    <div class="big-emo">🏁</div>
+    <h1>時間到！</h1>
+    <p class="final">你的得分：<span id="finalScore">0</span> 分</p>
+    <p class="comment" id="comment"></p>
+    <div class="review" id="reviewList"></div>
+    <button id="againBtn">再玩一次</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ================= 行為資料 ================= */
+  var ITEMS = [
+    { e:'🏭', label:'工廠廢氣', type:'pollution',
+      desc:'黑煙裡有很多懸浮粒子，會塞住葉子的氣孔，植物就沒辦法好好行光合作用；二氧化硫還會變成酸雨，灼傷葉片、讓土壤變酸。' },
+    { e:'🚗', label:'汽車廢氣', type:'pollution',
+      desc:'汽機車的廢氣含有懸浮粒子，會堵塞葉片氣孔、影響光合作用；二氧化硫形成的酸雨會灼傷葉片，還會讓土壤酸化。' },
+    { e:'🔥', label:'焚燒垃圾', type:'pollution',
+      desc:'露天燒垃圾會冒出濃濃的有毒煙，傷害動物和我們的呼吸，還會破壞小動物住的地方。' },
+    { e:'🌾', label:'焚燒秸稈', type:'pollution',
+      desc:'燒稻稈和燒垃圾一樣，濃煙裡有毒氣體，會危害動物的呼吸，也把牠們的棲息地燒掉了。' },
+    { e:'🧴', label:'農藥噴霧', type:'pollution',
+      desc:'噴太多農藥會放出 VOCs，曬到太陽就變成臭氧傷害植物；還會毒害蜜蜂等昆蟲和小動物。' },
+    { e:'🌳', label:'種植樹木', type:'clean',
+      desc:'樹木會吸收二氧化碳、放出氧氣，還會把空氣中的懸浮粒子黏在葉子上，讓空氣變乾淨。' },
+    { e:'🚲', label:'騎單車', type:'clean',
+      desc:'騎單車不用燒汽油，可以減少廢氣排放，也就減少酸雨和溫室氣體，空氣會更乾淨。' },
+    { e:'🚌', label:'搭公車', type:'clean',
+      desc:'大家一起搭公車、捷運，每個人分到的廢氣就變少，可以減少酸雨和溫室氣體。' }
+  ];
+
+  var POLLUTION = ITEMS.filter(function(i){ return i.type === 'pollution'; });
+  var CLEAN     = ITEMS.filter(function(i){ return i.type === 'clean'; });
+
+  /* ================= 元素 ================= */
+  var gameEl    = document.getElementById('game');
+  var timerEl   = document.getElementById('timer');
+  var timerPill = document.getElementById('timerPill');
+  var scoreEl   = document.getElementById('score');
+  var scorePill = document.getElementById('scorePill');
+  var tipCard   = document.getElementById('tipCard');
+  var tipTitle  = tipCard.querySelector('.tt');
+  var tipText   = tipCard.querySelector('.tx');
+  var startScreen = document.getElementById('startScreen');
+  var endScreen   = document.getElementById('endScreen');
+  var reviewList  = document.getElementById('reviewList');
+  var commentEl   = document.getElementById('comment');
+  var finalScoreEl= document.getElementById('finalScore');
+
+  var DURATION = 60;
+
+  /* ================= 狀態 ================= */
+  var sprites   = [];
+  var score     = 0;
+  var timeLeft  = DURATION;
+  var running   = false;
+  var lastTs    = 0;
+  var timerId   = null;
+  var tipTimer  = null;
+  var runId     = 0;
+
+  /* ================= 尺寸工具 ================= */
+  function fieldSize(){
+    return { w: gameEl.clientWidth, h: gameEl.clientHeight };
+  }
+  function bottomReserve(){
+    var h = gameEl.clientHeight;
+    return Math.min(138, h * 0.25);
+  }
+  function bounds(w, h){
+    var f = fieldSize();
+    var top = 64;
+    var bottom = bottomReserve();
+    return {
+      minX: 0,
+      maxX: Math.max(0, f.w - w),
+      minY: top,
+      maxY: Math.max(top, f.h - h - bottom)
+    };
+  }
+
+  /* ================= 建立一個飄動圖示 ================= */
+  function pickItem(){
+    if (Math.random() < 0.66){
+      return POLLUTION[Math.floor(Math.random() * POLLUTION.length)];
+    }
+    return CLEAN[Math.floor(Math.random() * CLEAN.length)];
+  }
+
+  function createSprite(item){
+    item = item || pickItem();
+
+    var el = document.createElement('div');
+    el.className = 'sprite';
+    el.innerHTML =
+      '<div class="inner">' +
+        '<span class="emo">' + item.e + '</span>' +
+        '<span class="lbl">' + item.label + '</span>' +
+      '</div>';
+    gameEl.appendChild(el);
+
+    var w = el.offsetWidth;
+    var h = el.offsetHeight;
+    var b = bounds(w, h);
+
+    var x = b.minX + Math.random() * Math.max(0, b.maxX - b.minX);
+    var y = b.minY + Math.random() * Math.max(0, b.maxY - b.minY);
+
+    var base  = (item.type === 'pollution') ? 46 : 34;
+    var speed = base + Math.random() * 38;
+    var ang   = Math.random() * Math.PI * 2;
+
+    var s = {
+      el: el,
+      item: item,
+      w: w,
+      h: h,
+      x: x,
+      y: y,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      dead: false
+    };
+
+    el.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+
+    el.addEventListener('pointerdown', function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      hit(s);
+    }, { passive: false });
+
+    sprites.push(s);
+    return s;
+  }
+
+  /* ================= 點擊處理 ================= */
+  function hit(s){
+    if (!running || s.dead) return;
+    s.dead = true;
+
+    var r  = s.el.getBoundingClientRect();
+    var cx = r.left + r.width  / 2;
+    var cy = r.top  + r.height / 2;
+
+    if (s.item.type === 'pollution'){
+      score += 1;
+      scoreEl.textContent = score;
+      bump(scorePill);
+      floatText(cx, cy, '+1', '#ff5a3c');
+      showTip(s.item, 'pollution');
+    } else {
+      score = Math.max(0, score - 1);
+      scoreEl.textContent = score;
+      floatText(cx, cy, '-1', '#2e9e4f');
+      showTip(s.item, 'clean');
+    }
+
+    var el = s.el;
+    el.classList.add('pop');
+    setTimeout(function(){ el.remove(); }, 340);
+
+    var idx = sprites.indexOf(s);
+    if (idx >= 0) sprites.splice(idx, 1);
+
+    var myRun = runId;
+    setTimeout(function(){
+      if (!running || myRun !== runId) return;
+      createSprite();
+    }, 650 + Math.random() * 650);
+  }
+
+  function bump(el){
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+
+  /* ================= 飄出的分數 ================= */
+  function floatText(x, y, text, color){
+    var d = document.createElement('div');
+    d.className = 'float';
+    d.textContent = text;
+    d.style.left = x + 'px';
+    d.style.top  = y + 'px';
+    d.style.color = color;
+    gameEl.appendChild(d);
+    setTimeout(function(){ d.remove(); }, 950);
+  }
+
+  /* ================= 顯示提示卡 ================= */
+  function showTip(item, type){
+    tipCard.className = 'tip ' + (type === 'clean' ? 'clean' : 'pollution') + ' show';
+    tipTitle.textContent = (type === 'pollution' ? '⚠️ ' : '✅ ') + item.label;
+    tipText.textContent  = item.desc;
+
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(function(){
+      tipCard.classList.remove('show');
+    }, 2800);
+  }
+
+  /* ================= 主迴圈 ================= */
+  function loop(ts){
+    if (!running) return;
+    if (!lastTs) lastTs = ts;
+
+    var dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+    if (dt > 0.06) dt = 0.06;
+    if (dt < 0) dt = 0;
+
+    for (var i = 0; i < sprites.length; i++){
+      var s = sprites[i];
+      if (s.dead) continue;
+
+      var b = bounds(s.w, s.h);
+
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+
+      if (s.x < b.minX){ s.x = b.minX; s.vx = Math.abs(s.vx); }
+      else if (s.x > b.maxX){ s.x = b.maxX; s.vx = -Math.abs(s.vx); }
+
+      if (s.y < b.minY){ s.y = b.minY; s.vy = Math.abs(s.vy); }
+      else if (s.y > b.maxY){ s.y = b.maxY; s.vy = -Math.abs(s.vy); }
+
+      s.el.style.transform = 'translate3d(' + s.x + 'px,' + s.y + 'px,0)';
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= 計時 ================= */
+  function updateTimer(){
+    var t = Math.ceil(timeLeft - 1e-9);
+    if (t < 0) t = 0;
+    timerEl.textContent = t;
+    timerPill.classList.toggle('urgent', running && timeLeft <= 10);
+  }
+
+  function tickTimer(){
+    timeLeft -= 0.1;
+    if (timeLeft <= 0){
+      timeLeft = 0;
+      updateTimer();
+      endGame();
+      return;
+    }
+    updateTimer();
+  }
+
+  /* ================= 開始遊戲 ================= */
+  function startGame(){
+    runId++;
+
+    running  = true;
+    score    = 0;
+    timeLeft = DURATION;
+    scoreEl.textContent = score;
+    updateTimer();
+
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    tipCard.classList.remove('show');
+
+    clearInterval(timerId);
+    clearTimeout(tipTimer);
+
+    for (var i = 0; i < sprites.length; i++){
+      sprites[i].el.remove();
+    }
+    sprites = [];
+
+    var f = fieldSize();
+    var count = Math.round((f.w * f.h) / 45000);
+    count = Math.max(5, Math.min(10, count));
+
+    for (var k = 0; k < count; k++){
+      createSprite();
+    }
+
+    /* 至少保留一個淨化行為，讓小朋友練習分辨 */
+    var hasClean = sprites.some(function(s){ return s.item.type === 'clean'; });
+    if (!hasClean && sprites.length > 0){
+      var last = sprites.pop();
+      last.el.remove();
+      createSprite(CLEAN[Math.floor(Math.random() * CLEAN.length)]);
+    }
+
+    lastTs = 0;
+    requestAnimationFrame(loop);
+
+    timerId = setInterval(tickTimer, 100);
+  }
+
+  /* ================= 結束遊戲 ================= */
+  function endGame(){
+    running = false;
+    clearInterval(timerId);
+    clearTimeout(tipTimer);
+    tipCard.classList.remove('show');
+    timerPill.classList.remove('urgent');
+
+    for (var i = 0; i < sprites.length; i++){
+      sprites[i].el.remove();
+    }
+    sprites = [];
+
+    finalScoreEl.textContent = score;
+
+    var msg;
+    if (score >= 25)      msg = '太厲害了！你是空氣污染小達人！🏆';
+    else if (score >= 15) msg = '很棒！你已經能分辨很多污染行為了！👏';
+    else if (score >= 8)  msg = '不錯喔！再玩一次，看看能不能抓到更多污染兇手！💪';
+    else                  msg = '沒關係，先看看下面的複習，再挑戰一次一定更棒！🌱';
+    commentEl.textContent = msg;
+
+    buildReview();
+    endScreen.classList.remove('hidden');
+    endScreen.scrollTop = 0;
+  }
+
+  /* ================= 複習清單 ================= */
+  function buildReview(){
+    var html = '';
+
+    html += '<h3>🚨 污染行為 <span>（點它們得 1 分）</span></h3>';
+    for (var i = 0; i < POLLUTION.length; i++){
+      var p = POLLUTION[i];
+      html += '<div class="review-item pollution">' +
+                '<span class="e">' + p.e + '</span>' +
+                '<div><b>' + p.label + '</b>' + p.desc + '</div>' +
+              '</div>';
+    }
+
+    html += '<h3>🌿 淨化行為 <span>（會扣 1 分，但對地球很好）</span></h3>';
+    for (var j = 0; j < CLEAN.length; j++){
+      var c = CLEAN[j];
+      html += '<div class="review-item clean">' +
+                '<span class="e">' + c.e + '</span>' +
+                '<div><b>' + c.label + '</b>' + c.desc + '</div>' +
+              '</div>';
+    }
+
+    reviewList.innerHTML = html;
+  }
+
+  /* ================= 視窗尺寸改變 ================= */
+  var resizeTimer = null;
+  function reflow(){
+    for (var i = 0; i < sprites.length; i++){
+      var s = sprites[i];
+      if (s.dead) continue;
+      s.w = s.el.offsetWidth;
+      s.h = s.el.offsetHeight;
+      var b = bounds(s.w, s.h);
+      if (s.x < b.minX) s.x = b.minX;
+      if (s.x > b.maxX) s.x = b.maxX;
+      if (s.y < b.minY) s.y = b.minY;
+      if (s.y > b.maxY) s.y = b.maxY;
+      s.el.style.transform = 'translate3d(' + s.x + 'px,' + s.y + 'px,0)';
+    }
+  }
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(reflow, 120);
+  });
+  window.addEventListener('orientationchange', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(reflow, 300);
+  });
+
+  /* ================= 按鈕 ================= */
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+
+  /* 先建立好複習內容 */
+  buildReview();
+})();
+</script>
+</body>
+</html>
